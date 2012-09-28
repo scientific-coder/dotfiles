@@ -1,0 +1,24 @@
+# deb http://ftp.fr.debian.org/debian/ squeeze main
+
+deb http://ftp.fr.debian.org/debian/ experimental main contrib non-free
+deb http://ftp.fr.debian.org/debian/ unstable main contrib non-free
+deb-src http://ftp.fr.debian.org/debian/ unstable main contrib non-free
+
+deb http://emacs.naquadah.org/ unstable/
+
+# deb http://security.debian.org/ squeeze/updates main
+# deb-src http://security.debian.org/ squeeze/updates main
+
+# squeeze-updates, previously known as 'volatile'
+# deb http://ftp.fr.debian.org/debian/ squeeze-updates main
+# deb-src http://ftp.fr.debian.org/debian/ squeeze-updates main
+
+deb http://debian.weboob.org unstable main
+
+deb http://toolbelt.herokuapp.com/ubuntu ./
+deb-src http://toolbelt.herokuapp.com/ubuntu ./
+
+deb http://archive.cloudera.com/debian squeeze-cdh3 contrib
+deb-src http://archive.cloudera.com/debian squeeze-cdh3 contrib
+#postgresql latest
+deb http://pgapt.debian.net/ sid-pgdg main
