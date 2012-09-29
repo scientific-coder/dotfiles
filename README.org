@@ -1,0 +1,77 @@
+Those are my dotfiles, with convenience scripts for easy
+deployment on multiple computers.
+
+This is how I setup a new account:
+
+- git clone https://lloeki@github.com/lloeki/dotfiles.git
+- cd dotfiles
+- ./setup.sh
+- enjoy.
+
+* Not yet
+just a repository for me
+
+#+BEGIN_SRC sh
+
+sed -e "s/$
+#+END_SRC
+#+begin_src shell
+# su
+echo "bernard ALL = NOPASSWD: ALL" >>/etc/sudoers.d/me
+#C-d out of su root session
+git clone https://github.com/scientific-coder/dotfiles.git
+#TODO get bash profile
+sudo cp dotfiles/home/sources.lst /etc/apt/sources.lst
+sudo apt-get update
+sudo apt-get dist-upgrade
+#TODO store installed packages with --get-selections and retrieve them with
+# dpkg --set-selections
+# if should install lshw-gtk
+sudo apt-get install emacs-snapshot
+#TODO store alternatives with --get-selections on github and use 
+# update-alternatives --set-selections
+sudo update-alternatives --set emacs /usr/bin/emacs-snapshot
+git clone https://github.com/scientific-coder/emacs24-starter-kit.git
+(cd emacs24-starter-kit.git && sudo make install)
+ln -s  Documents/Workspace/emacs24-starter-kit/ .emacs.d
+git clone git://orgmode.org/org-mode.git
+# make current org-mode and install for debian emacs-snapshot
+(file=$(mktemp) && cd org-mode && sed -e "s/\(\/emacs\)\//\\1-snapshot\//g" <local.mk >${file} && mv ${file} local.mk && rm ${file}&& sudo make install)
+
+#+end_src
+1. clone
+2. copy sources.lst
+3. apt-get update && apt-et install emacs-snapshot && update-alternative
+
+* hardware
+** realtek
+#+BEGIN_SRC sh
+sudo apt-get install firmware-realtek
+sudo apt-get install dkms
+#+END_SRC
+** intel wireless
+#+BEGIN_SRC sh
+sudo apt-get install firmware-iwlwifi
+#+END_SRC
+** card reader
+
+#+BEGIN_SRC sh
+wget http://planet76.com/drivers/realtek/rts-bpp-dkms_1.1_all.deb
+sudo apt-get install dkms
+sudo dpkg -i rts-bpp-dkms_1.1_all.deb
+echo 'DRIVERS=="rts_bpp", ENV{ID_DRIVE_FLASH_SD}="1"' | sudo tee -a /lib/udev/rules.d/81-udisks-realtek.rules
+#+END_SRC
+** nvidia laptop optimus
+[[http://suwako.nomanga.net/][Bumblebee debian repo]]
+
+#+BEGIN_SRC sh
+wget -O - http://suwako.nomanga.net/suwako.asc | sudo apt-key add -
+sudo apt-add-repository "deb http://suwako.nomanga.net/debian sid main contrib"
+sudo apt-add-repository "deb-src http://suwako.nomanga.net/debian sid main"
+sudo apt-get update
+sudo apt-get install bumblebee bumblebee-nvidia
+sudo adduser $USER bumblebee
+#+END_SRC
+
+** wine
+http://techpatterns.com/forums/about2158.html
