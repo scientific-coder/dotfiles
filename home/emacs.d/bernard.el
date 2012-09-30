@@ -19,7 +19,7 @@
 (setq org-tags-exclude-from-inheritance (quote ("crypt")))
 
 (setq org-export-latex-packages-alist nil)
-    (add-to-list 'org-export-latex-packages-alist '("" "microtype"))
+(add-to-list 'org-export-latex-packages-alist '("" "microtype"))
 (add-to-list 'org-export-latex-packages-alist '("" "amssymb"))
 (add-to-list 'org-export-latex-packages-alist '("" "ulem"))
 (add-to-list 'org-export-latex-packages-alist '("" "color"))
@@ -29,6 +29,7 @@
 (add-to-list 'org-export-latex-packages-alist '("" "tabularx"))
 (add-to-list 'org-export-latex-packages-alist '("" "colortbl"))
 (add-to-list 'org-export-latex-packages-alist '("" "wasysym"))
+(add-to-list 'org-export-latex-packages-alist '("" "minted"))
 (add-to-list 'org-export-latex-packages-alist '("" "paralist"))
 (add-to-list 'org-export-latex-packages-alist '("T1" "fontenc"))
 (add-to-list 'org-export-latex-packages-alist '("AUTO" "inputenc"))
@@ -92,15 +93,17 @@
 
 (global-hl-line-mode 1)
 (set-face-background 'hl-line "#333333")
-(add-to-list 'load-path (expand-file-name "./lib/color-theme/"))
-;;(add-to-list 'load-path (expand-file-name "./lib/"))
-(load-file (expand-file-name "./lib/cyberpunk.el"))
-(color-theme-cyberpunk)
-
+(add-to-list 'package-archives
+             '("melpa" . "http://melpa.milkbox.net/packages/") t)
+(unless (package-installed-p 'cyberpunk-theme)
+        (package-install 'cyberpunk-theme))
+(load-theme 'cyberpunk t)
 (set-cursor-color "yellow")
+
 
 (setq ispell-program-name "aspell" ; use aspell instead of ispell
       ispell-extra-args '("--sug-mode=ultra"))(autoload 'flyspell-mode "flyspell" "On-the-fly spelling checker." t)
-(load-file (expand-file-name "./lib/cosmetic.el"))
+;; UGLY 
+(load-file (expand-file-name "~/.emacs.d/lib/cosmetic.el"))
 (require 'undo-tree)
 (global-undo-tree-mode)
