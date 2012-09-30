@@ -26,7 +26,9 @@ sudo apt-get update
 sudo apt-get dist-upgrade
 #TODO store installed packages with --get-selections and retrieve them with
 # dpkg --set-selections
-# if should install lshw-gtk
+# it should install lshw-gtk
+# apt-get install texlive-latex-extra graphviz lshw-gtk gcc-snapshot lib32mudflap0 binutils-gold ecj libecj-java-gcj openjdk-7-jdk icedtea-7-plugin fonts-ipafont-gothic fonts-ipafont-mincho ttf-wqy-microhei ttf-wqy-zenhei ttf-indic-fonts
+
 sudo apt-get install emacs-snapshot
 #TODO store alternatives with --get-selections on github and use 
 # update-alternatives --set-selections
@@ -75,3 +77,12 @@ sudo adduser $USER bumblebee
 
 ** wine
 http://techpatterns.com/forums/about2158.html
+* iceweasel
+** dwhelper
+https://addons.mozilla.org/fr/firefox/addon/video-downloadhelper/
+
+** diigo
+https://addons.mozilla.org/fr/firefox/addon/diigo-web-highlighter-and-stic/
+
+** https everywhere
+https://www.eff.org/https-everywhere
