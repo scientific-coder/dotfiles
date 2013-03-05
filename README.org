@@ -27,7 +27,7 @@ sudo apt-get dist-upgrade
 #TODO store installed packages with --get-selections and retrieve them with
 # dpkg --set-selections
 # it should install lshw-gtk
-# apt-get install texlive-latex-extra graphviz lshw-gtk gcc-snapshot lib32mudflap0 binutils-gold ecj libecj-java-gcj openjdk-7-jdk icedtea-7-plugin fonts-ipafont-gothic fonts-ipafont-mincho ttf-wqy-microhei ttf-wqy-zenhei ttf-indic-fonts
+# apt-get install texlive-latex-extra graphviz lshw-gtk gcc-snapshot lib32mudflap0 binutils-gold ecj libecj-java-gcj openjdk-7-jdk icedtea-7-plugin fonts-ipafont-gothic fonts-ipafont-mincho ttf-wqy-microhei ttf-wqy-zenhei ttf-indic-fonts zsh zsh-doc
 
 sudo apt-get install emacs-snapshot
 #TODO store alternatives with --get-selections on github and use 
@@ -86,3 +86,74 @@ https://addons.mozilla.org/fr/firefox/addon/diigo-web-highlighter-and-stic/
 
 ** https everywhere
 https://www.eff.org/https-everywhere
+* security
+https://help.github.com/articles/generating-ssh-keys
+** upload to github
+** upload to aws
+https://console.aws.amazon.com/ec2/home?region=us-east-1&#s=KeyPairs
+for each region 
+* Clojure
+** lein
+https://github.com/technomancy/leiningen
+#+BEGIN_SRC sh
+wget https://raw.github.com/technomancy/leiningen/preview/bin/lein -O /tmp/lein
+sudo mv /tmp/lein /us/local/bin
+sudo chown root /usr/local/bin/lein
+sudo chmod +x /usr/local/bin/lein
+#+END_SRC
+* Tarsnap
+#+BEGIN_SRC sh
+wget https://www.tarsnap.com/download/tarsnap-autoconf-1.0.33.tgz
+cd tarsnap-autoconf-1.0.33
+./configure
+make all
+sudo checkinstall
+make clean
+#+END_SRC
+* java
+** oracle
+http://www.webupd8.org/2012/06/how-to-install-oracle-java-7-in-debian.html
+#+BEGIN_SRC sh
+echo "deb http://ppa.launchpad.net/webupd8team/java/ubuntu precise main" | tee -a /etc/apt/sources.list
+echo "deb-src http://ppa.launchpad.net/webupd8team/java/ubuntu precise main" | tee -a /etc/apt/sources.list
+apt-key adv --keyserver keyserver.ubuntu.com --recv-keys EEA14886
+apt-get update
+apt-get install oracle-java7-installer
+wget http://download.oracle.com/otn-pub/java/javafx_scenebuilder/1.1-b12/javafx_scenebuilder-1_1-beta-b12-linux-x64-16_nov_2012.tar.gz
+# tar xvfz in /usr/local/
+mvn deploy:deploy-file -DgroupId=local.oracle -DartifactId=javafxrt -Dversion=2.2.0 -Dpackaging=jar -Dfile=/usr/local/JavaFXSceneBuilder1.1/runtime/jre/lib/jfxrt.jar -Durl=file:${HOME}/.m2/repository
+#+END_SRC
+* s3
+From [[http://s3tools.org/repositories#note-deb][S3 tools page]] :
+#+BEGIN_SRC sh
+wget -O- -q http://s3tools.org/repo/deb-all/stable/s3tools.key | sudo apt-key add -
+sudo wget -O/etc/apt/sources.list.d/s3tools.list http://s3tools.org/repo/deb-all/stable/s3tools.list
+sudo apt-get update && sudo apt-get install s3cmd
+#+END_SRC
+* VMs
+#+BEGIN_SRC sh
+wget http://files.vagrantup.com/packages/476b19a9e5f499b5d0b9d4aba5c0b16ebe434311/vagrant_x86_64.deb
+sudo dpkg -i vagrant_x86_64.deb
+export PATH=${PATH}:/opt/vagrant/bin
+sudo apt-get install virtualbox-ose virtualbox-ose-dkms  linux-headers-amd64
+sudo gem install vagrant-snap virtualbox
+#+END_SRC
+http://forums.debian.net/viewtopic.php?f=10&t=80468
+http://bugs.debian.org/cgi-bin/bugreport.cgi?bug=696011
+* googlesketchup
+http://wiki.winehq.org/GoogleSketchup
+* emacs
+** plantuml
+Get [[http://sourceforge.net/projects/plantuml/files/plantuml.jar/download][plantuml.jar]] from web site
+http://ignum.dl.sourceforge.net/project/plantuml/plantuml.jar
+#+BEGIN_SRC sh
+sudo mkdir /usr/local/lib/plantuml
+sudo wget -P /usr/local/lib/plantuml/ http://ignum.dl.sourceforge.net/project/plantuml/plantuml.jar
+#+END_SRC
+#+BEGIN_SRC elisp
+
+#+END_SRC
+** desktop key bindings
+#+BEGIN_SRC sh
+gsettings set org.gnome.desktop.interface gtk-key-theme "Emacs"
+#+END_SRC
