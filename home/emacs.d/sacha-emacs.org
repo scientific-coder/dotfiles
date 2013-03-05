@@ -1,0 +1,1241 @@
+#+TITLE: Sacha Chua's Emacs configuration
+* Sacha Chua's Emacs configuration
+
+Inspired by the [[http://eschulte.me/emacs24-starter-kit/#installation][Emacs Starter Kit]], I set up my configuration file
+using Org-babel. Because my username is Sacha, I can save this as
+Sacha.org in my =~/.emacs.d= directory to have it automatically load.
+You could load it with =(org-babel-load-file "/path/to/file")=,
+changing the path appropriately, but you'll probably want to tweak it
+extensively first. 
+
+This page: [[http://dl.dropbox.com/u/3968124/sacha-emacs.html][HTML]] - [[http://dl.dropbox.com/u/3968124/sacha-emacs.org][Org]] - [[https://dl.dropbox.com/u/3968124/sacha-emacs.el][.el]]
+
+** Personal information
+
+#+begin_src emacs-lisp
+  (setq user-full-name "Sacha Chua"
+        user-mail-address "sacha@sachachua.com")
+#+end_src
+
+** Add my elisp directory and other files
+
+#+begin_src emacs-lisp
+(add-to-list 'load-path "~/elisp")
+(add-to-list 'load-path "~/elisp/use-package")
+(require 'use-package)
+(require 'bind-key)
+(add-to-list 'load-path "~/elisp/org-mode/lisp")
+(add-to-list 'load-path "~/elisp/artbollocks-mode")
+(load-file "~/.emacs.secrets")
+(starter-kit-load "org")
+#+end_src
+** Byte-compile my init files to speed things up next time
+
+#+begin_example
+(defun sacha/byte-recompile ()
+  (interactive)
+  (byte-recompile-directory "~/.emacs.d" 0)
+  (byte-recompile-directory "~/elisp" 0))
+#+end_example
+
+** Load other parts of the Emacs Starter Kit
+
+#+begin_src emacs-lisp
+  (starter-kit-load "misc-recommended")
+  (require 'cl)
+#+end_src
+
+For some reason, show-paren-mode misbehaves in my copy of emacs-starter-kit.
+#+begin_src emacs-lisp
+(show-paren-mode -1)
+#+end_src
+
+I don't want spell-checking to run automatically. It's a little distracting.
+
+#+begin_src emacs-lisp
+(remove-hook 'text-mode-hook 'turn-on-flyspell)
+#+end_src
+
+** Share my Emacs configuration
+
+This code gets around the fact that my config is called Sacha.org, but
+I want it to export as sacha-emacs.org in my Dropbox's public
+directory. I also use a dark background when editing, but the colours
+are better if I export assuming a light background.
+
+#+begin_src emacs-lisp
+  (defun sacha/org-share-emacs ()
+    "Share my Emacs configuration."
+    (interactive)
+    (let* ((destination-dir "~/Dropbox/Public/")
+           (destination-filename "sacha-emacs.org")
+           (current-theme `(color-theme-snapshot
+              ;; alist of frame parameters
+              ,(color-theme-get-params)
+              ;; alist of variables
+              ,(color-theme-get-vars)
+              ;; remaining elements of snapshot: face specs
+              ,@(color-theme-get-face-definitions))))
+      (save-restriction
+        (save-excursion
+          (widen)
+          (write-region (point-min) (point-max) (expand-file-name destination-filename destination-dir))
+          (with-current-buffer (find-file-noselect (expand-file-name
+                                                    destination-filename destination-dir))
+            (set-background-color "white")
+            (color-theme-vim-colors)
+            (org-babel-tangle-file buffer-file-name 
+                                   (expand-file-name
+                                    "sacha-emacs.el" destination-dir) "emacs-lisp")
+            (org-export-as-html nil)
+            (color-theme-install current-theme)
+            )))))
+    #+end_src
+
+** Install packages if necessary
+
+ELPA makes it easy to install packages without tracking down all the
+different websites. Let's define a function that makes it easy to
+install packages.
+
+#+begin_src emacs-lisp
+(defun sacha/package-install (package &optional repository)
+  "Install PACKAGE if it has not yet been installed.
+If REPOSITORY is specified, use that."
+  (unless (package-installed-p package)
+    (let ((package-archives (if repository
+                                (list (assoc repository package-archives))
+                              package-archives)))
+    (package-install package))))
+#+end_src
+
+** General configuration
+*** Enable minibuffer completion
+It can be difficult to remember the full names of Emacs commands, so I
+use =icomplete-mode= for minibuffer completion. This also makes it
+easier to discover commands.
+
+#+begin_src emacs-lisp
+(icomplete-mode 1)
+#+end_src
+
+*** Little editing shortcuts
+
+**** Navigation
+In my world, sentences end with a single space. This makes
+sentence navigation commands work for me.
+#+begin_src emacs-lisp
+(setq sentence-end-double-space nil)
+#+end_src
+
+**** When I press Enter
+I almost always want to go to the right indentation on the next line.
+#+begin_src emacs-lisp
+(global-set-key (kbd "RET") 'newline-and-indent)
+#+end_src
+
+**** Searching based on the current word
+This lets me search up and down.
+
+#+begin_src emacs-lisp
+(defun sacha/search-word-backward ()
+  "Find the previous occurrence of the current word."
+  (interactive)
+  (let ((cur (point)))
+    (skip-syntax-backward "w_")
+    (goto-char
+     (if (re-search-backward (concat "\\_<" (current-word) "\\_>") nil t)
+	 (match-beginning 0)
+       cur))))
+
+(defun sacha/search-word-forward ()
+  "Find the next occurrence of the current word."
+  (interactive)
+  (let ((cur (point)))
+    (skip-syntax-forward "w_")
+    (goto-char
+     (if (re-search-forward (concat "\\_<" (current-word) "\\_>") nil t)
+	 (match-beginning 0)
+       cur))))
+(global-set-key '[M-up] 'sacha/search-word-backward)
+(global-set-key '[M-down] 'sacha/search-word-forward)
+(defadvice search-for-keyword (around sacha activate)
+  "Match in a case-insensitive way."
+  (let ((case-fold-search t))
+    ad-do-it))
+#+end_src
+
+**** Tramp and editing files over SSH
+Emacs lets you edit files on remote servers, which is pretty darn
+cool.
+
+#+begin_src emacs-lisp
+(setq tramp-default-method "ssh")
+#+end_src
+
+**** Ido-mode: Show recent files
+Ido-mode is awesome. Let's make it awesomer. I usually want to go to
+recently-opened files first.
+
+#+begin_src emacs-lisp
+  (ido-mode 1)
+  (setq ido-default-buffer-method 'selected-window)
+  (add-hook 'ido-make-file-list-hook 'ido-sort-mtime)
+  (add-hook 'ido-make-dir-list-hook 'ido-sort-mtime)
+  (defun ido-sort-mtime ()
+    (setq ido-temp-list
+          (sort ido-temp-list 
+                (lambda (a b)
+                  (let ((ta (nth 5 (file-attributes (concat ido-current-directory a))))
+                        (tb (nth 5 (file-attributes (concat ido-current-directory b)))))
+                    (if (= (nth 0 ta) (nth 0 tb))
+                        (> (nth 1 ta) (nth 1 tb))
+                      (> (nth 0 ta) (nth 0 tb)))))))
+    (ido-to-end  ;; move . files to end (again)
+     (delq nil (mapcar
+                (lambda (x) (if (string-equal (substring x 0 1) ".") x))
+                ido-temp-list))))
+
+#+end_src
+
+**** Minibuffer editing
+    Sometimes you want to be able to do fancy things with the text
+    that you're entering into the minibuffer. This binds =C-M-e= in a
+    minibuffer) so that you can edit the contents of the minibuffer
+    before submitting it.
+
+#+begin_src emacs-lisp
+  (use-package miniedit
+    :commands minibuffer-edit
+    :init
+    (progn
+      (bind-key "\M-\C-e" 'miniedit minibuffer-local-map)
+      (bind-key "\M-\C-e" 'miniedit minibuffer-local-ns-map)
+      (bind-key "\M-\C-e" 'miniedit minibuffer-local-completion-map)
+      (bind-key "\M-\C-e" 'miniedit minibuffer-local-must-match-map)))
+#+end_src
+
+*** Change "yes or no" to "y or n"
+
+#+begin_src emacs-lisp
+(fset 'yes-or-no-p 'y-or-n-p)   
+#+end_src
+
+*** Set up a white-on-black color scheme
+
+I like white on black because I find it to be more restful. The
+color-theme in ELPA is buggy, though, so we define some advice to make
+it work.
+
+#+begin_src emacs-lisp
+  (defadvice color-theme-alist (around sacha activate)
+    (if (ad-get-arg 0)
+        ad-do-it
+      nil))
+  (sacha/package-install 'color-theme)
+  (use-package color-theme
+    :init
+    (color-theme-hober))
+#+end_src
+
+Some things still aren't quite right, though.
+
+#+begin_src emacs-lisp
+  (set-face-foreground 'secondary-selection "darkblue")
+  (set-face-background 'secondary-selection "lightblue")
+#+end_src
+*** Frequently-accessed files
+Registers allow you to jump to a file or other location quickly. To
+jump to a register, use =C-x r j= followed by the letter of the
+register.
+
+#+begin_src emacs-lisp :results silent
+  (dolist
+      (r `((?i (file . ,(expand-file-name (concat user-login-name ".org") starter-kit-dir)))
+           (?o (file . "~/personal/organizer.org"))
+           (?b (file . "~/personal/business.org"))
+           ))
+    (set-register (car r) (cadr r)))
+#+end_src
+
+*** Kill-ring management
+
+#+begin_src emacs-lisp
+  (sacha/package-install 'browse-kill-ring)
+  (use-package browse-kill-ring
+    :init 
+    (progn 
+      (browse-kill-ring-default-keybindings)
+      (setq browse-kill-ring-quit-action 'save-and-restore)))      
+#+end_src
+
+*** Key chords 
+I'm on a Dvorak keyboard, so these might not work for you.
+Experimenting with this!
+#+begin_src emacs-lisp
+  (use-package key-chord
+    :init
+    (progn 
+      (key-chord-mode 1)
+      (key-chord-define-global "cg"     'undo)
+      (key-chord-define-global "yp"     'other-window)))
+#+end_src
+*** Quantified Emacs!
+
+#+begin_src emacs-lisp
+  (use-package keyfreq
+    :init
+    (progn
+      (keyfreq-mode 1)
+      (keyfreq-autosave-mode 1)))
+#+end_src
+*** Better undo
+#+begin_src emacs-lisp
+  (use-package undo-tree
+    :init (global-undo-tree-mode))
+#+end_src
+*** Fix ido in Emacs Starter Kit
+
+For some reason, some things don't have modified times on Microsoft
+Windows.
+
+#+begin_src emacs-lisp
+(defun ido-sort-mtime ()
+  (setq ido-temp-list
+        (sort ido-temp-list 
+              (lambda (a b)
+                (let ((ta (nth 5 (file-attributes (concat ido-current-directory a))))
+                      (tb (nth 5 (file-attributes (concat ido-current-directory b)))))
+                  (if (= (or (nth 0 ta) 0) (or (nth 0 tb) 0))
+                      (> (or (nth 1 ta) 0) (or (nth 1 tb)))
+                    (> (or (nth 0 ta) 0) (or (nth 0 tb) 0)))))))
+  (ido-to-end  ;; move . files to end (again)
+   (delq nil (mapcar
+              (lambda (x) (if (string-equal (substring x 0 1) ".") x))
+              ido-temp-list))))
+#+end_src
+
+** Writing
+*** Avoiding weasel words
+    #+begin_src emacs-lisp
+      (use-package artbollocks-mode
+        :init
+        (progn
+          (setq artbollocks-weasel-words-regex
+                (concat "\\b" (regexp-opt
+                               '("one of the"
+                                 "should"
+                                 "just"
+                                 "sort of"
+                                 "a lot"
+                                 "probably"
+                                 "maybe"
+                                 "perhaps"
+                                 "I think"
+                                 "really"
+                                 "pretty"
+                                 "maybe"
+                                 "nice"
+                                 "action"
+                                 "utilize"
+                                 "leverage") t) "\\b"))
+          ;; Don't show the art critic words, or at least until I figure
+          ;; out my own jargon
+          (setq artbollocks-jargon nil)))
+#+end_src
+** Org
+
+I use [[http://www.orgmode.org][Org Mode]] to take notes, publish my blog, and do all sorts of
+stuff.
+
+*** Modules
+Org has a whole bunch of optional modules. These are the ones I'm
+currently experimenting with.
+#+begin_src emacs-lisp
+  (require 'org-install)
+  (setq org-modules '(org-bbdb 
+                      org-contacts
+                      org-gnus
+                      org-info
+                      org-jsinfo
+                      org-habit
+                      org-irc
+                      org-mouse
+                      org-annotate-file
+                      org-eval
+                      org-expiry
+                      org-interactive-query
+                      org-man
+                      org-panel
+                      org-screen
+                      org-toc))
+#+end_src
+
+I also like using =ido=-style completion.
+
+#+begin_src emacs-lisp
+(setq org-completion-use-ido t)
+#+end_src
+
+*** Keyboard shortcuts
+
+    #+begin_src emacs-lisp
+      (bind-key "C-c r" 'org-capture)
+      (bind-key "C-c a" 'org-agenda)
+      (bind-key "C-c l" 'org-store-link)
+      (bind-key "C-c L" 'org-insert-link-global)
+      (bind-key "C-c O" 'org-open-at-point-global)
+      (eval-after-load 'org
+        '(progn
+           (bind-key "C-c v" 'org-show-todo-tree org-mode-map)
+           (bind-key "C-c C-r" 'org-refile org-mode-map)
+           (bind-key "C-c R" 'org-reveal org-mode-map)))
+#+end_src
+
+=append-next-kill= is more useful to me than =org-table-copy-region=.
+
+#+begin_src emacs-lisp
+  (eval-after-load 'org
+    '(progn
+       (bind-key "C-M-w" 'append-next-kill org-mode-map)))
+#+end_src
+
+I don't use the diary, but I do use the clock a lot.
+
+#+begin_src emacs-lisp
+  (use-package org-agenda
+    :init (bind-key "i" 'org-agenda-clock-in org-agenda-mode-map))
+#+end_src
+    
+*** Taking notes
+
+    My org files are in my =personal= directory, which is actually a
+    symlink to a directory in my Dropbox. That way, I can update my
+    Org files from multiple computers.
+    
+#+begin_src emacs-lisp
+  (setq org-directory "~/personal")
+  (setq org-default-notes-file "~/personal/organizer.org")
+#+end_src
+
+**** Templates
+
+     I use =org-capture= templates to quickly jot down tasks, ledger
+     entries, notes, and other semi-structured pieces of information.
+#+begin_src emacs-lisp     
+     (setq org-capture-templates
+      '(("t" "Tasks" entry
+	 (file+headline "~/personal/organizer.org" "Tasks")
+	 "* TODO %^{Task}
+SCHEDULED: %^t
+%?
+:PROPERTIES:
+:Effort: %^{effort|1:00|0:05|0:15|0:30|2:00|4:00}
+:END:")
+	("q" "Quick task" entry
+	 (file+headline "~/personal/organizer.org" "Tasks")
+	 "* TODO %^{Task}
+SCHEDULED: %^t
+:PROPERTIES:
+:Effort: %^{effort|1:00|0:05|0:15|0:30|2:00|4:00}
+:END:"
+	 :immediate-finish t)
+	("l" "Ledger entries")
+	("lm" "MBNA" plain
+	 (file "~/personal/ledger")
+	 "%(org-read-date) %^{Payee}
+  Liabilities:MBNA  
+  Expenses:%^{Account}  $%^{Amount}
+" :immediate-finish)
+	("ln" "No Frills" plain
+	 (file "~/personal/ledger")
+	 "%(let ((org-read-date-prefer-future nil)) (org-read-date)) * No Frills
+  Liabilities:MBNA  
+  Assets:Wayne:Groceries  $%^{Amount}
+" :immediate-finish)	
+	("lc" "Cash" plain
+	 (file "~/personal/ledger")
+	 "%(org-read-date) * %^{Payee}
+  Expenses:Cash 
+  Expenses:%^{Account}  %^{Amount}
+")	       
+	("n" "Tracking" table-line
+	 (file+headline "~/personal/organizer.org" "Tracking")
+	 "| %t | %^{Woke up} | %(sacha/org-count-words-today) | %^{Slept} |")
+	("b" "Book" entry
+	 (file+datetree "~/personal/books.org" "Inbox")
+	 "* %^{Title}  %^g
+%i
+*Author(s):* %^{Author} \\\\
+*ISBN:* %^{ISBN}
+
+%?
+
+*Review on:* %^t \\
+%a
+%U"
+	 :clock-in :clock-resume)
+         ("c" "Contact" entry (file "~/personal/contacts.org")
+          "* %(org-contacts-template-name)
+:PROPERTIES:
+:EMAIL: %(org-contacts-template-email)
+:END:")
+	 ("r" "Notes" entry
+	  (file+datetree "~/personal/organizer.org" "Inbox")
+	  "* %?\n\n%i\n"
+	  :clock-in :clock-resume)))
+(global-set-key (kbd "C-M-r") 'org-capture)
+#+end_src
+**** Refiling
+    
+    When I use =org-refile= to organize my notes, I like seeing the
+    latest entries on top.
+    
+    #+begin_src emacs-lisp
+      (setq org-reverse-note-order t)
+      (setq org-refile-targets
+            '(("~/personal/contacts.org" . (:maxlevel . 2))
+              ("~/personal/decisions.org" . (:maxlevel . 3))
+              ("~/personal/outline.org" . (:maxlevel . 10))
+              ("~/personal/organizer.org" . (:maxlevel . 4))))
+      (setq org-blank-before-new-entry nil)
+    #+end_src
+    
+**** Estimating WPM
+
+     I'm curious about how fast I type some things.
+#+begin_src emacs-lisp
+(require 'org-clock)
+(defun sacha/org-entry-wpm ()
+  (interactive)
+  (save-restriction
+    (save-excursion
+      (org-narrow-to-subtree)
+      (goto-char (point-min))
+      (let* ((words (count-words-region (point-min) (point-max)))
+	     (minutes (org-clock-sum-current-item))
+	     (wpm (/ words minutes)))
+	(message "WPM: %d (words: %d, minutes: %d)" wpm words minutes)
+	(kill-new (number-to-string wpm))))))
+#+end_src
+
+*** Managing tasks
+**** Track TODO state
+     #+begin_src emacs-lisp
+       (setq org-todo-keywords
+        '((sequence
+           "TODO(t)"  ; next action
+           "TOBLOG(b)"  ; next action
+           "STARTED(s)"
+           "WAITING(w@/!)"
+           "POSTPONED(p)" "SOMEDAY(s@/!)" "|" "DONE(x!)" "CANCELLED(c@)")
+          (sequence "TODELEGATE(-)" "DELEGATED(d)" "COMPLETE(x)")))
+#+end_src
+     
+**** Projects
+     #+begin_src emacs-lisp
+       (setq org-tags-exclude-from-inheritance '("PROJECT"))
+     #+end_src
+**** Tag tasks
+     #+begin_src emacs-lisp
+       (setq org-tag-alist '(("@work" . ?w) 
+                             ("@home" . ?h) 
+                             ("@errands" . ?e) 
+                             ("blog" . ?b) 
+                             ("quantified" . ?q)))
+     #+end_src
+**** Enable filtering by effort estimates
+
+     #+begin_src emacs-lisp
+       (setq org-global-properties
+             '(("Effort_ALL". "0 0:10 0:30 1:00 2:00 3:00 4:00")))
+     #+end_src
+     
+**** Track time
+
+     #+begin_src emacs-lisp
+     (setq org-clock-idle-time nil)
+     (setq org-log-done 'time)
+     (defadvice org-clock-in (after wicked activate)
+  "Mark STARTED when clocked in"
+  (save-excursion
+    (catch 'exit
+      (org-back-to-heading t)
+      (if (looking-at org-outline-regexp) (goto-char (1- (match-end 0))))
+      (if (looking-at (concat " +" org-todo-regexp "\\( +\\|[ \t]*$\\)"))
+	  (org-todo "STARTED")))))
+#+end_src
+(setq org-clock-idle-time nil)
+     
+**** Habits
+
+     I like using org-habits to track consistency. My task names tend
+     to be a bit long, though, so I've configured the graph column to
+     show a little bit more to the right.
+     
+     #+begin_src emacs-lisp
+     (setq org-habit-graph-column 80)
+#+end_src
+*** Org agenda
+
+I have quite a few Org files, but I keep my agenda items and TODOs in
+only two of them for faster scanning.
+
+#+begin_src emacs-lisp
+    (setq org-agenda-files '("~/personal/organizer.org"
+                             "~/personal/business.org"
+                             "~/personal/food.org"
+                             "~/personal/routines.org"))
+#+end_src
+
+I like looking at two days at a time when I plan using the Org
+agenda. I want to see my log entries, but I don't want to see
+scheduled items that I've finished. I like seeing a time grid so that
+I can get a sense of how appointments are spread out.
+
+#+begin_src emacs-lisp
+  (setq org-agenda-span 2)
+  (setq org-agenda-show-log t)
+  (setq org-agenda-skip-scheduled-if-done t)
+  (setq org-agenda-time-grid
+        '((daily today require-timed)
+         "----------------"
+         (800 1000 1200 1400 1600 1800)))
+  (setq org-agenda-custom-commands
+        '(("W" todo "WAITING")
+          ("T" todo-tree "TODO")
+          ("t" todo ""
+           ((org-agenda-prefix-format "")
+            (org-agenda-cmp-user-defined 'sacha/org-sort-agenda-items-todo)
+            (org-agenda-view-columns-initially t)
+            ))
+          ;; Weekly review
+          ("w" "Weekly review" agenda "" ((org-agenda-span 7) (org-agenda-log-mode 1)))
+          ("1" tags-todo "+@work"
+           ((org-agenda-view-columns-initially t)
+            (org-agenda-cmp-user-defined 'sacha/org-sort-agenda-items-todo)))
+          ("2" tags-todo "+@blog" ((org-agenda-view-columns-initially t)))
+          ("3" tags-todo "+@home" ((org-agenda-view-columns-initially t)))
+          ("4" tags-todo "+@phone" ((org-agenda-view-columns-initially
+                                     t)))
+          ("7" "Timeline" ((agenda "" ))
+           ((org-agenda-ndays 1)
+            (org-agenda-show-log t)
+            (org-agenda-log-mode-items '(clock closed))
+            (org-agenda-clockreport-mode t)
+            (org-agenda-entry-types '())))
+          ("w" todo "WAITING")
+          ("u" "Unscheduled" ((sacha/org-agenda-list-unscheduled)))
+          ("v" tags-todo "+BOSS-URGENT")
+          ("U" tags-tree "+BOSS-URGENT")
+          ("f" occur-tree "\\<FIXME\\>")
+          ("r" occur-tree ":rough:")
+          ("b" occur-tree ":toblog:")
+          ("p" tags "+PROJECT")
+          ))
+  
+#+end_src
+
+**** Sorting by date and priority
+
+#+begin_src emacs-lisp
+  (setq org-agenda-sorting-strategy
+        '((agenda time-up user-defined-up todo-state-up priority-down effort-up)
+          (todo user-defined-up todo-state-up priority-down effort-down)
+          (tags user-defined-up)
+          (search category-keep)))
+  (setq org-agenda-cmp-user-defined 'sacha/org-sort-agenda-items-user-defined)    
+  (require 'cl)
+  (defun sacha/org-get-context (txt)
+    "Find the context."
+    (car (member-if
+          (lambda (item) (string-match "@" item))
+          (get-text-property 1 'tags txt))))
+  
+  (defun sacha/org-compare-dates (a b)
+    "Return 1 if A should go after B, -1 if B should go after A, or 0 if a = b."
+    (cond
+     ((and (= a 0) (= b 0)) nil)
+     ((= a 0) 1)
+     ((= b 0) -1)
+     ((> a b) 1)
+     ((< a b) -1)
+     (t nil)))
+  
+  (defun sacha/org-complete-cmp (a b)
+    (let* ((state-a (or (get-text-property 1 'todo-state a) ""))
+           (state-b (or (get-text-property 1 'todo-state b) "")))
+      (or
+       (if (member state-a org-done-keywords-for-agenda) 1)
+       (if (member state-b org-done-keywords-for-agenda) -1))))
+  
+  (defun sacha/org-date-cmp (a b)
+    (let* ((sched-a (or (get-text-property 1 'org-scheduled a) 0))
+           (sched-b (or (get-text-property 1 'org-scheduled b) 0))
+           (deadline-a (or (get-text-property 1 'org-deadline a) 0))
+           (deadline-b (or (get-text-property 1 'org-deadline b) 0)))
+      (or
+       (sacha/org-compare-dates
+        (sacha/org-min-date sched-a deadline-a)
+        (sacha/org-min-date sched-b deadline-b)))))
+  
+  (defun sacha/org-min-date (a b)
+    "Return the smaller of A or B, except for 0."
+    (funcall (if (and (> a 0) (> b 0)) 'min 'max) a b))
+  
+  (defun sacha/org-sort-agenda-items-user-defined (a b)
+    ;; compare by deadline, then scheduled date; done tasks are listed at the very bottom
+    (or
+     (sacha/org-complete-cmp a b)
+     (sacha/org-date-cmp a b)))
+  
+  (defun sacha/org-context-cmp (a b)
+    "Compare CONTEXT-A and CONTEXT-B."
+    (let ((context-a (sacha/org-get-context a))
+          (context-b (sacha/org-get-context b)))
+      (cond
+       ((null context-a) +1)
+       ((null context-b) -1)
+       ((string< context-a context-b) -1)
+       ((string< context-b context-a) +1)
+       (t nil))))
+  
+  (defun sacha/org-sort-agenda-items-todo (a b)
+    (or
+     (org-cmp-time a b)
+     (sacha/org-complete-cmp a b)
+     (sacha/org-context-cmp a b)
+     (sacha/org-date-cmp a b)
+     (org-cmp-todo-state a b)
+     (org-cmp-priority a b)
+     (org-cmp-effort a b)))
+#+end_src
+     
+**** Preventing things from falling through the cracks
+This helps me keep track of unscheduled tasks, because I sometimes
+forget to assign tasks a date. I also want to keep track of stuck projects.
+#+begin_src emacs-lisp
+(defun sacha/org-agenda-list-unscheduled (&rest ignore)
+  "Create agenda view for tasks that are unscheduled and not done."
+  (let* ((org-agenda-todo-ignore-with-date t)
+	 (org-agenda-overriding-header "List of unscheduled tasks: "))
+    (org-agenda-get-todos)))
+(setq org-stuck-projects
+      '("+PROJECT-MAYBE-DONE"
+        ("TODO")
+        nil
+        "\\<IGNORE\\>"))
+#+end_src
+
+*** Viewing, navigating, and editing the Org tree
+
+    #+begin_src emacs-lisp
+      (setq org-cycle-include-plain-lists nil)
+    #+end_src
+
+    I often cut and paste subtrees. This makes it easier to cut
+    something and paste it elsewhere in the hierarchy.
+    #+begin_src emacs-lisp
+      (eval-after-load 'org
+        '(progn
+           (define-key org-mode-map (kbd "C-c k") 'org-cut-subtree)
+           (setq org-yank-adjusted-subtrees t)))
+#+end_src
+*** Publishing
+Timestamps and section numbers make my published files look more
+complicated than they are. Let's turn them off by default.
+#+begin_src emacs-lisp
+(setq org-export-with-section-numbers nil)
+(setq org-html-include-timestamps nil)
+#+end_src
+
+This makes it easier to publish my public Dropbox files:
+
+#+begin_src emacs-lisp
+  (setq org-publish-project-alist
+        '(("public"
+           :base-directory "c:/sacha/Dropbox/public"
+           :base-extension "org"
+           :publishing-directory "c:/sacha/Dropbox/public"
+           :publishing-function org-publish-org-to-html
+           )))
+#+end_src
+
+I use org2blog to post to my blog, which is Wordpress-based. I used to
+use punchagan's org2blog, but there's a completely different one in
+ELPA, so I figured I'd give that a try.
+
+#+begin_src emacs-lisp
+(sacha/package-install 'org2blog)
+(require 'org2blog-autoloads)
+(setq org-export-with-toc nil)
+#+end_src
+
+Might as well take advantage of my stylesheet:
+
+#+begin_src emacs-lisp
+(setq org-export-html-style "<link rel=\"stylesheet\" type=\"text/css\" href=\"http://sachachua.com/blog/wp-content/themes/sacha-v3/style.css\" />
+<link rel=\"stylesheet\" type=\"text/css\" href=\"http://sachachua.com/org-export.css\" />")
+(setq org-export-html-preamble nil)
+(setq org-export-html-postamble nil)
+(setq org-src-fontify-natively t)
+#+end_src
+
+Sometimes I just want a little bit:
+
+#+begin_src emacs-lisp
+(defun sacha/org-export-subtree-as-html-fragment ()
+  (interactive)
+  (org-export-region-as-html
+   (org-back-to-heading)
+   (org-end-of-subtree)
+   t))
+#+end_src
+
+*** Structure templates
+
+Org makes it easy to insert blocks by typing <s[TAB], etc.
+I hardly ever use LaTeX, but I insert a lot of Emacs Lisp blocks, so I
+redefine <l to insert a Lisp block instead.
+
+#+begin_src emacs-lisp
+  (setq org-structure-template-alist 
+        '(("s" "#+begin_src ?\n\n#+end_src" "<src lang=\"?\">\n\n</src>")
+          ("e" "#+begin_example\n?\n#+end_example" "<example>\n?\n</example>")
+          ("q" "#+begin_quote\n?\n#+end_quote" "<quote>\n?\n</quote>")
+          ("v" "#+BEGIN_VERSE\n?\n#+END_VERSE" "<verse>\n?\n</verse>")
+          ("c" "#+BEGIN_CENTER\n?\n#+END_CENTER" "<center>\n?\n</center>")
+          ("l" "#+begin_src emacs-lisp\n?\n#+end_src" "<src lang=\"emacs-lisp\">\n?\n</src>")
+          ("L" "#+latex: " "<literal style=\"latex\">?</literal>")
+          ("h" "#+begin_html\n?\n#+end_html" "<literal style=\"html\">\n?\n</literal>")
+          ("H" "#+html: " "<literal style=\"html\">?</literal>")
+          ("a" "#+begin_ascii\n?\n#+end_ascii")
+          ("A" "#+ascii: ")
+          ("i" "#+index: ?" "#+index: ?")
+          ("I" "#+include %file ?" "<include file=%file markup=\"?\">")))
+#+end_src
+*** Quick links
+    #+begin_src emacs-lisp
+    (setq org-link-abbrev-alist
+      '(("google" . "http://www.google.com/search?q=")
+	("gmap" . "http://maps.google.com/maps?q=%s")
+	("blog" . "http://sachachua.com/blog/p/")))
+#+end_src
+*** MobileOrg for Android
+
+    I've been playing around with MobileOrg so that I can review my
+    agenda and capture notes on my smartphone. My main Org file is too
+    big to open easily there, though.
+    
+#+begin_src emacs-lisp
+    (use-package org-mobile
+      :init
+      (progn
+        (autoload 'org-mobile-pull "org-mobile" nil t)
+        (autoload 'org-mobile-push "org-mobile" nil t))
+      :config
+      (progn
+        (setq org-mobile-directory "~/Dropbox/mobile")
+        (setq org-mobile-inbox-for-pull "~/personal/mobileorg.org")
+        (setq default-buffer-file-coding-system 'utf-8)
+        (setq org-mobile-files '("/cygdrive/c/sacha/personal/organizer.org" "/cygdrive/c/sacha/personal/business.org"))
+        (setq org-mobile-agendas '("a"))))
+#+end_src
+*** My files
+
+#<<org-files>>
+
+Here are the Org files I use. I should probably organize them better. =)
+
+| organizer.org   | My main Org file. Inbox for M-x org-capture, tasks, weekly reviews, etc.           |
+| emacs.org       | Interesting Emacs snippets. Used to be in outline.org, but got to be pretty big    |
+| business.org    | Business-related notes and TODOs                                                   |
+| decisions.org   | Pending, current, and reviewed decisions                                           |
+| outline.org     | Huge outline of notes by category                                                  |
+| tracking.org    | Temporary Org file for tracking various things                                     |
+| delegation.org  | Templates for assigning tasks                                                      |
+| books.org       | Huge file with book notes                                                          |
+| calendar.org    | Used to use this with ical2org, but have been having problems with ical2org lately |
+| contacts.org    | People-related notes using org-contacts                                            |
+| blog.org        | Topic index for my blog                                                            |
+| t420.org        | Miscellaneous notes related to old projects                                        |
+| learning.org    | Learning plan                                                                      |
+| ideal.org       | Planning ideal days                                                                |
+| archive.org     | Archived subtrees                                                                  |
+| latin.org       | Latin notes                                                                        |
+| preparation.org | Things I think about and plan ahead for, so that I can be less nervous about them. |
+| 101things.org   | Old goals for 101 things in 1001 days                                              |
+| org-talk.org    | Notes for my talk in Org                                                           |
+| life.org        | Questions, processes, tools                                                        |
+| quotes.org      | Quotations                                                                         |
+
+
+** Coding
+*** General preferences
+    #+begin_src emacs-lisp
+    (setq tab-width 4)
+#+end_src
+*** Use Cygwin
+#+begin_src emacs-lisp
+(setenv "PATH" (concat "c:/cygwin/bin;" (getenv "PATH")))
+(setq exec-path (cons "c:/cygwin/bin/" exec-path))
+(require 'cygwin-mount)
+(cygwin-mount-activate)
+(add-hook 'comint-output-filter-functions
+    'shell-strip-ctrl-m nil t)
+(add-hook 'comint-output-filter-functions
+    'comint-watch-for-password-prompt nil t)
+(setq explicit-shell-file-name "bash.exe")
+;; For subprocesses invoked via the shell
+;; (e.g., "shell -c command")
+(setq shell-file-name explicit-shell-file-name)
+#+end_src
+*** Finding files
+
+    I don't want to think about directory structures, I just want to
+    open files. 
+
+    #+begin_src emacs-lisp
+      (require 'filecache)
+      (require 'ido)
+      (defun file-cache-ido-find-file (file)
+        "Using ido, interactively open file from file cache'.
+      First select a file, matched using ido-switch-buffer against the contents
+      in `file-cache-alist'. If the file exist in more than one
+      directory, select directory. Lastly the file is opened."
+        (interactive (list (file-cache-ido-read "File: "
+                                                (mapcar
+                                                 (lambda (x)
+                                                   (car x))
+                                                 file-cache-alist))))
+        (let* ((record (assoc file file-cache-alist)))
+          (find-file
+           (expand-file-name
+            file
+            (if (= (length record) 2)
+                (car (cdr record))
+              (file-cache-ido-read
+               (format "Find %s in dir: " file) (cdr record)))))))
+      
+      (defun file-cache-ido-read (prompt choices)
+        (let ((ido-make-buffer-list-hook
+               (lambda ()
+                 (setq ido-temp-list choices))))
+          (ido-read-buffer prompt)))
+      (add-to-list 'file-cache-filter-regexps "docs/html")
+      (add-to-list 'file-cache-filter-regexps "\\.svn-base$")
+      (add-to-list 'file-cache-filter-regexps "\\.dump$")
+    #+end_src     
+
+    To use this code, I add something like
+    
+    #+begin_src emacs-lisp :tangle no
+      (sacha/file-cache-setup-tree "sacha/proj1" "C-c d"
+                                   '("/dir1"
+                                     "/dir2"))
+    #+end_src
+    to my config. Then =C-c d= (or whatever keyboard shortcut I use)
+    searches for files within the specified directories.
+    
+*** Drupal
+
+#+begin_src emacs-lisp
+  (define-derived-mode drupal-mode php-mode "Drupal"
+    "Major mode for Drupal source code.
+  \\{drupal-mode-map}"
+    (setq case-fold-search t) 
+    (setq indent-tabs-mode nil)
+    (setq c-basic-offset 2)
+    (setq indent-tabs-mode nil)
+    (setq tab-width 2)
+    (setq fill-column 78)
+    (c-set-offset 'arglist-cont 0)
+    (c-set-offset 'arglist-intro '+)
+    (c-set-offset 'case-label 2)
+    (c-set-offset 'arglist-close 0)
+    (setq yas/buffer-local-condition 
+    '(cond
+     ((looking-at "\\w") nil)
+     ((and
+       (not (bobp))
+       (or (equal "font-lock-comment-face"
+                  (get-char-property (1- (point)) 'face))
+           (equal "font-lock-string-face"
+                  (get-char-property (1- (point)) 'face))))
+      '(require-snippet-condition . force-in-comment))
+     (t t))))
+  (define-key drupal-mode-map (kbd "TAB") 'indent-according-to-mode)
+  (add-hook 'drupal-mode-hook (lambda () (flymake-mode 1)))
+  (add-hook 'drupal-mode-hook (lambda () (yas/minor-mode 1)))
+  (add-to-list 'auto-mode-alist '("\\.\\(php\\|test\\|module\\|inc\\|install\\|engine\\|profile\\|.theme\\)$" . drupal-mode))
+  (add-to-list 'auto-mode-alist '("\\.tpl.php$" . html-helper-mode))
+  (define-key drupal-mode-map '[M-S-up] 'flymake-goto-prev-error)
+  (define-key drupal-mode-map '[M-S-down] 'flymake-goto-next-error)
+  (define-key drupal-mode-map (kbd "C-c C-c") 'comment-dwim)
+  
+  (defun sacha/drupal-module-name ()
+    "Return the Drupal module name for .module and .install files."
+    (file-name-sans-extension (file-name-nondirectory
+                               (buffer-file-name))))
+  (add-to-list 'hs-special-modes-alist '(drupal-mode "{" "}" "/[*/]" nil hs-c-like-adjust-block-beginning))
+  
+#+end_src
+
+*** Expand region
+#+begin_src emacs-lisp
+  (sacha/package-install 'expand-region)
+  (use-package expand-region
+    :bind ("C-=" . er/expand-region))
+#+end_src
+*** Tag files
+    I don't want to have to set my tags file per project, so I search
+    for it in the directory tree instead.
+    
+    #+begin_src emacs-lisp
+      (defun sacha/recursive-find-file (file &optional directory)
+        "Find the first FILE in DIRECTORY or its parents."
+        (setq directory (or directory (file-name-directory (buffer-file-name)) (pwd)))
+        (if (file-exists-p (expand-file-name file directory))
+            (expand-file-name file directory)
+          (unless (string= directory "/")
+            (sacha/recursive-find-file file (expand-file-name ".." directory)))))
+      
+      (defun sacha/find-tags ()
+        "Set the TAGS file."
+        (set (make-variable-buffer-local 'tags-table-list) nil)
+        (set (make-variable-buffer-local 'tags-file-name) 
+             (sacha/recursive-find-file "TAGS")))
+      
+      (eval-after-load 'drupal-mode
+        '(progn
+           (add-hook 'drupal-mode-hook 'sacha/find-tags)))
+      #+end_src
+
+    
+*** Snippets
+    #+begin_src emacs-lisp
+    (require 'yasnippet-bundle)
+(yas/initialize)
+(yas/load-directory "~/elisp/snippets")
+(setq yas/key-syntaxes '("w_" "w_." "^ "))
+(global-set-key (kbd "C-c y") (lambda () (interactive)
+				    (yas/load-directory "~/elisp/snippets")))
+#+end_src
+*** Show more information
+
+I sometimes need to know where I am in a line.
+    #+begin_src emacs-lisp
+(column-number-mode 1)
+#+end_src
+
+*** Don't show whitespace in diff, but show context
+    #+begin_src emacs-lisp
+    (setq vc-diff-switches '("-b" "-B" "-u"))
+#+end_src
+** Ledger (personal finance)
+
+This isn't a package yet, so I manually add it to my load path.
+
+** Fun and games
+
+   
+*** Typing of Emacs
+    #+begin_src emacs-lisp
+      (use-package typing
+        :init
+        (autoload 'typing-of-emacs "typing" nil t)
+        :config
+        (progn
+          (setq toe-starting-length 6)
+          (setq toe-starting-time-per-word 2)
+          (setq toe-max-length 20)))
+#+end_src
+*** Internet Relay Chat
+
+    IRC is a great way to hang out with other Emacs geeks.
+    #+begin_src emacs-lisp
+      (use-package erc
+        :config
+        (setq erc-autojoin-channels-alist '(("freenode.net"
+                                             "#org-mode"
+                                             "#emacs"))
+              erc-server "irc.freenode.net"
+              erc-nick "sachac"))
+    #+end_src
+
+** Statistics
+
+#+begin_src emacs-lisp
+  (sacha/package-install 'ess)                
+  (use-package ess-site
+    :init (setq inferior-R-program-name "c:/progra~1/R/R-2.15.0/bin/x64/Rterm.exe")
+    :commands R)
+#+end_src
+
+** Miscellaneous data transformations
+*** Artrage
+
+#+begin_src emacs-lisp
+          (defun sacha/artrage-export-png (directory &optional prefix)
+            "Change an Artrage script file (arscript) to export images to DIRECTORY. 
+      If PREFIX is specified, use that instead of image-."
+            (interactive "MPath: ")
+            (unless (file-directory-p directory)
+              (make-directory directory t))
+            (while (re-search-forward "[0-9\\.]+s" nil t)
+              (replace-match "0.000s"))
+            (goto-char (point-min))
+            (while (search-forward "<StrokeEvent>" nil t)
+              (replace-match (concat 
+                              "EvType: Command    CommandID: ExportLayer    Idx: -1    Channels: NO    Path: \""
+                              directory
+                              "/" (or prefix "image-")
+                              ".png\"
+  <StrokeEvent>") t t)))
+    
+#+end_src
+*** Workrave
+    #+begin_src emacs-lisp
+    (defvar sacha/workrave-file (expand-file-name ".\\Workrave\\historystats" (getenv "AppData")))
+
+(defun sacha/workrave-transform-statistics (&optional file)
+  (interactive (list sacha/workrave-file))
+  (with-current-buffer (find-file-noselect file)
+  ;; D day month-1 year hour min day month-1 year hour min
+    (let ((result "Date\tStart\tEnd\tClicks\tKeystrokes\n"))
+      (goto-char (point-min))
+      (while (re-search-forward "^D \\(.*\\)" nil t)
+	(let ((dates (split-string (match-string 1))))
+	  (if (re-search-forward "^m \\(.*\\)" nil t)
+	      (let ((info (split-string (match-string 1))))
+		(setq result
+		      (concat result
+			      (format "%d-%d-%s\t%s:%02d\t%s:%02d\t%s\t%s\n"
+				      (+ 1900 (string-to-number (elt dates 2))) ; year
+				      (1+ (string-to-number (elt dates 1))) ; month
+				      (elt dates 0) ; day
+				      (elt dates 3) ; start hour
+				      (string-to-number (elt dates 4)) ; start min
+				      (elt dates 8) ; end hour
+				      (string-to-number (elt dates 9)) ; end min
+				      (elt info 5) ; clicks
+				      (elt info 6) ; keystrokes
+				      )))))))
+      (if (interactive-p)
+	  (kill-new result)
+	result))))
+    #+end_src
+** Quantified Awesome
+
+#+begin_src emacs-lisp
+  (use-package quantified
+    :init
+    (defun sacha/org-quantified-track (category)
+      "Create a tracking record using CATEGORY.
+  Default to the current task in the agenda, the currently-clocked
+  entry, or the current subtree in Org."
+      (interactive
+       (list
+        (read-string "Category: "
+                     (or
+                      (if (derived-mode-p 'org-agenda-mode)
+                          (let* ((marker (org-get-at-bol 'org-marker))
+                                 (buffer (marker-buffer marker))
+                                 (pos (marker-position marker)))
+                          (with-current-buffer buffer
+                            (save-excursion
+                              (save-restriction
+                                (widen)
+                                (goto-char pos)
+                                (org-entry-get-with-inheritance "QUANTIFIED"))))))       
+                    (if org-clock-marker
+                        (save-excursion
+                          (org-clock-goto)
+                          (org-entry-get-with-inheritance "QUANTIFIED")))
+                    (if (derived-mode-p 'org-mode)
+                        (org-entry-get-with-inheritance "QUANTIFIED"))))))))
+#+end_src
+** Evernote
+
+#+begin_src emacs-lisp
+    (require 'cygwin-mount)
+    (cygwin-mount-activate)
+    (add-to-list 'load-path "~/evernote-mode-0_41")
+    (use-package evernote-mode
+      :bind (("C-c e c" . evernote-create-note)
+             ("C-c e o" . evernote-open-note)
+             ("C-c e s" . evernote-search-notes)
+             ("C-c e S" . evernote-do-saved-search)
+             ("C-c e w" . evernote-write-note)
+             ("C-c e p" . evernote-post-region)
+             ("C-c e b" . evernote-browser))
+      :commands evernote-login)
+  
+  (defun sacha/org-get-subtree-region ()
+    "Return the start and end of the current subtree."
+    (save-excursion
+      (let (beg end folded (beg0 (point)))
+        (if (org-called-interactively-p 'any)
+            (org-back-to-heading nil) ; take what looks like a subtree
+          (org-back-to-heading t)) ; take what is really there
+        (org-back-over-empty-lines)
+        (setq beg (point))
+        (skip-chars-forward " \t\r\n")
+        (save-match-data
+          (save-excursion (outline-end-of-heading)
+                          (setq folded (outline-invisible-p)))
+          (condition-case nil
+              (org-forward-same-level (1- n) t)
+            (error nil))
+          (org-end-of-subtree t t))
+        (org-back-over-empty-lines)
+        (setq end (point))
+        (list beg end))))
+  
+  (defun sacha/org-post-subtree-to-evernote (&optional notebook)
+    "Post the current subtree to Evernote."
+    (interactive)
+    (let ((title (nth 4 (org-heading-components)))
+          (org-export-html-postamble nil)
+          (org-export-html-preamble nil)
+          (org-export-with-toc nil)
+          (body 
+           (apply 'buffer-substring-no-properties (sacha/org-get-subtree-region))))
+      (with-temp-buffer
+        (insert body)
+        (setq level (1- (org-reduced-level (org-outline-level))))
+        (dotimes (n level nil) (org-promote-subtree))
+        (setq body (org-export-region-as-html (point-min) (point-max) t 'string))
+        (erase-buffer)
+        (insert "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE en-note SYSTEM \"http://xml.evernote.com/pub/enml2.dtd\"><en-note>")
+        (insert body)
+        (insert "</en-note>")
+        ;; Replace the attributes that Evernote doesn't like
+        (goto-char (point-min))
+        (while (re-search-forward "\\(class\\|id\\|style\\)=\"[^\"]+\"" nil t)
+          (replace-match ""))
+        (enh-command-with-auth
+         (let (note-attr)
+           (setq note-attr
+                 (enh-command-create-note (current-buffer)
+                                          title
+                                          notebook
+                                          nil "XHTML"))
+           (enh-update-note-and-new-tag-attrs note-attr))))))       
+  
+#+end_src
+   
+** Workarounds
+*** color-theme sometimes comes across lists. Odd!
+
+#+begin_src emacs-lisp
+  (defadvice face-attribute (around sacha activate)
+    (if (symbolp (ad-get-arg 0))
+        ad-do-it))
+#+end_src
+
+** Startup
+   #+begin_src emacs-lisp
+     (find-file "~/personal/organizer.org")
+     (org-agenda nil "a")
+#+end_src
